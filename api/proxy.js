@@ -3,7 +3,8 @@ export default async function handler(req, res) {
     const target = req.query.url;
 
     if (!target || !target.startsWith("http")) {
-      return res.status(400).send("Missing or invalid ?url=");
+      res.statusCode = 400;
+      return res.end("Missing or invalid ?url=");
     }
 
     const response = await fetch(target, {
@@ -17,7 +18,6 @@ export default async function handler(req, res) {
 
     // 1. Alle Header vom Ziel-Server kopieren
     response.headers.forEach((value, key) => {
-      // Bestimmte Header auslassen, da sie Node.js-Fehler verursachen können
       if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(key.toLowerCase())) {
         res.setHeader(key, value);
       }
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
 
-    // 3. WICHTIG: Iframe-Sperren entfernen
+    // 3. Iframe-Sperren entfernen
     res.setHeader("X-Frame-Options", "ALLOWALL"); 
     res.removeHeader("content-security-policy");
     res.removeHeader("content-security-policy-report-only");
@@ -39,27 +39,28 @@ export default async function handler(req, res) {
     if (contentType.includes("text/html")) {
       let html = await response.text();
       
-      // Erstellt die Basis-URL des Senders (z.B. https://megatv.com)
       const urlObj = new URL(target);
       const baseUrl = urlObj.origin;
 
-      // Injiziert ein <base>-Tag in das HTML, damit relative Skripte/Stylesheets 
-      // direkt vom Original-Server geladen werden und die Seite nicht zerschossen aussieht.
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head><base href="${baseUrl}/">`);
       } else if (html.includes("<HEAD>")) {
         html = html.replace("<HEAD>", `<HEAD><base href="${baseUrl}/">`);
       }
 
-      return res.status(200).send(html);
+      res.statusCode = 200;
+      return res.end(html);
     }
 
     // 5. Andere Dateitypen (Bilder, Skripte) als Buffer senden
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    return res.status(200).send(buffer);
+    
+    res.statusCode = 200;
+    return res.end(buffer);
 
   } catch (err) {
-    return res.status(500).send("Proxy failed: " + err.message);
+    res.statusCode = 500;
+    return res.end("Proxy failed: " + err.message);
   }
 }
