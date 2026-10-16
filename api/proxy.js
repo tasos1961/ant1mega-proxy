@@ -1,6 +1,7 @@
 export default async function handler(req, res) {
   try {
-    const target = req.query.url;
+    // URL auslesen – funktioniert in beiden Runtimes
+    const target = req.query?.url || new URL(req.url, "http://localhost").searchParams.get("url");
 
     if (!target || !target.startsWith("http")) {
       return res.status(400).send("Missing or invalid ?url=");
