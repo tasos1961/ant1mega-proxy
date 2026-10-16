@@ -3,22 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Griechisches Live TV</title>
-
-    <!-- HLS.js für Browser & Smart TVs -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <title>Griechisches Live TV – Proxy Modus</title>
 
     <style>
-        body { 
-            margin: 0; 
-            background: #111; 
+        body {
+            margin: 0;
+            background: #111;
             color: white;
             font-family: Arial, sans-serif;
-            display: flex; 
+            display: flex;
             flex-direction: column;
-            align-items: center; 
-            justify-content: flex-start; 
-            height: 100vh; 
+            align-items: center;
             padding-top: 20px;
         }
 
@@ -49,76 +44,47 @@
             background: #28a745;
         }
 
-        video { 
-            width: 90%; 
-            max-width: 1024px; 
+        iframe {
+            width: 95%;
+            height: 80vh;
+            border: none;
             background: black;
-            box-shadow: 0px 4px 20px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
 
     <div class="menu">
-        <button class="btn" id="btn-ant1" onclick="playChannel('ant1')">ANT1 HD</button>
-        <button class="btn" id="btn-mega" onclick="playChannel('mega')">MEGA Life</button>
+        <button class="btn" id="btn-ant1" onclick="loadChannel('ant1')">ANT1 HD</button>
+        <button class="btn" id="btn-mega" onclick="loadChannel('mega')">MEGA Life</button>
     </div>
 
-    <video id="video" controls autoplay playsinline></video>
+    <iframe id="tvframe"></iframe>
 
     <script>
-        const video = document.getElementById('video');
-        let hls = null;
+        const proxyPrefix = "https://ant1mega-proxy.vercel.app/proxy?url=";
 
-        // Offizielle Webseiten (nicht HLS!)
         const channels = {
             ant1: "https://www.antenna.gr/",
             mega: "https://www.megatv.com/live/"
         };
 
-        // Dein eigener Vercel-Proxy
-        const proxyPrefix = "https://ant1mega-proxy.vercel.app/proxy?url=";
-
-        function playChannel(channelKey) {
-            const originalUrl = channels[channelKey];
-            const proxiedUrl = proxyPrefix + encodeURIComponent(originalUrl);
-
+        function loadChannel(channelKey) {
             // Buttons aktualisieren
             document.getElementById('btn-ant1').classList.remove('active');
             document.getElementById('btn-mega').classList.remove('active');
             document.getElementById('btn-' + channelKey).classList.add('active');
 
-            // Alten Stream stoppen
-            if (hls) {
-                hls.destroy();
-            }
+            // Proxy-URL erzeugen
+            const url = proxyPrefix + encodeURIComponent(channels[channelKey]);
 
-            // HLS.js verwenden
-            if (Hls.isSupported()) {
-                hls = new Hls({
-                    lowLatencyMode: true,
-                    backBufferLength: 90
-                });
-
-                hls.loadSource(proxiedUrl);
-                hls.attachMedia(video);
-
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play().catch(e => console.log("Autoplay blockiert:", e));
-                });
-
-                hls.on(Hls.Events.ERROR, function(event, data) {
-                    console.error("HLS Fehler:", data);
-                });
-
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = proxiedUrl;
-                video.addEventListener('loadedmetadata', () => video.play());
-            }
+            // iFrame laden
+            document.getElementById('tvframe').src = url;
         }
 
-        // Standard: ANT1 starten
-        window.onload = () => playChannel('ant1');
+        // Standard: ANT1 laden
+        window.onload = () => loadChannel('ant1');
     </script>
+
 </body>
 </html>
