@@ -65,7 +65,6 @@
         // Proxy-Prefix (Serverless Function)
         const proxyPrefix = "https://ant1mega-proxy.vercel.app/api/proxy?url=";
 
-
         // Offizielle Webseiten der Sender
         const channels = {
             ant1: "https://www.antenna.gr/",
@@ -74,18 +73,23 @@
 
         function loadChannel(channelKey) {
             // Buttons aktualisieren
-            document.getElementById('btn-ant1').classList.remove('active');
-            document.getElementById('btn-mega').classList.remove('active');
-            document.getElementById('btn-' + channelKey).classList.add('active');
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
 
-            // iFrame laden
-            const url = proxyPrefix + encodeURIComponent(channels[channelKey]);
-            document.getElementById('tvframe').src = url;
+            const activeButton = document.getElementById(`btn-${channelKey}`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+
+            // Iframe-Quelle setzen
+            const targetUrl = channels[channelKey];
+            const iframe = document.getElementById('tvframe');
+            
+            if (targetUrl) {
+                // Kombiniert den Proxy-Prefix mit der Ziel-URL
+                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
+            }
         }
-
-        // Standard: ANT1 laden
-        window.onload = () => loadChannel('ant1');
     </script>
-
 </body>
 </html>
