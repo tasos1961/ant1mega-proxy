@@ -62,13 +62,13 @@
     <iframe id="tvframe"></iframe>
 
     <script>
-        // Proxy-Prefix (Serverless Function)
-        const proxyPrefix = "https://ant1mega-proxy.vercel.app/api/proxy?url=";
+        // Dynamischer Proxy-Prefix passend zu deiner Vercel-Domain
+        const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
         // Offizielle Webseiten der Sender
         const channels = {
-            ant1: "https://www.antenna.gr/",
-            mega: "https://www.megatv.com/live/"
+            ant1: "https://antenna.gr",
+            mega: "https://megatv.com"
         };
 
         function loadChannel(channelKey) {
@@ -86,7 +86,6 @@
             const iframe = document.getElementById('tvframe');
             
             if (targetUrl) {
-                // Kombiniert den Proxy-Prefix mit der Ziel-URL
                 iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
             }
         }
