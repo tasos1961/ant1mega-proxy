@@ -1,47 +1,42 @@
-export default async function handler(req, res) {
-  try {
-    // URL auslesen – funktioniert in beiden Runtimes
-    const target = req.query?.url || new URL(req.url, "http://localhost").searchParams.get("url");
+export default async function handler(req) {
+    const { searchParams } = new URL(req.url);
+    const target = searchParams.get("url");
 
-    if (!target || !target.startsWith("http")) {
-      return res.status(400).send("Missing or invalid ?url=");
+    if (!target) {
+        return new Response("Missing ?url=", { status: 400 });
     }
 
+    // Cloudflare / CDN Spoofing
     const headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      "Accept": "*/*",
-      "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
-      "X-Forwarded-For": "2.84.1.22",
-      "CF-IPCountry": "GR",
-      "Referer": target,
-      "Origin": null
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0",
+        "Accept": "*/*",
+        "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
+        "X-Forwarded-For": "2.84.1.22",        // griechische IP
+        "CF-IPCountry": "GR",
+        "Referer": target,
+        "Origin": null
     };
 
     const response = await fetch(target, {
-      method: req.method,
-      headers,
-      redirect: "follow"
+        method: req.method,
+        headers,
+        redirect: "follow"
     });
 
-    const proxyHeaders = {};
-    response.headers.forEach((value, key) => {
-      proxyHeaders[key] = value;
-    });
+    // CORS entfernen
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("Access-Control-Allow-Origin", "*");
+    newHeaders.set("Access-Control-Allow-Headers", "*");
+    newHeaders.set("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
 
-    proxyHeaders["Access-Control-Allow-Origin"] = "*";
-    proxyHeaders["Access-Control-Allow-Headers"] = "*";
-    proxyHeaders["Access-Control-Allow-Methods"] = "GET,HEAD,POST,OPTIONS";
-
-    if (proxyHeaders["content-type"] && proxyHeaders["content-type"].includes("text")) {
-      const text = await response.text();
-      return res.set(proxyHeaders).send(text);
+    // HLS-Segment-Rewrite
+    if (target.endsWith(".m3u8")) {
+        let text = await response.text();
+        text = text.replace(/(https?:\/\/[^ ]+)/g, (match) => {
+            return `/proxy?url=${encodeURIComponent(match)}`;
+        });
+        return new Response(text, { headers: newHeaders });
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return res.set(proxyHeaders).send(buffer);
-
-  } catch (err) {
-    console.error("Proxy error:", err);
-    return res.status(500).send("Proxy failed");
-  }
+    return new Response(response.body, { headers: newHeaders });
 }
