@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/ant1mega.html" }
+  ],
+  "routes": [
+    { "src": "/proxy/(.*)", "dest": "/api/proxy.js" }
+  ]
+}
