@@ -1,43 +1,50 @@
-export const config = {
-  runtime: "edge"
-};
+export default async function handler(req, res) {
+  try {
+    const target = req.query.url;
 
-export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
-  const target = searchParams.get("url");
+    if (!target) {
+      return res.status(400).send("Missing ?url=");
+    }
 
-  if (!target) {
-    return new Response("Missing ?url=", { status: 400 });
-  }
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept": "*/*",
+      "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
+      "X-Forwarded-For": "2.84.1.22",
+      "CF-IPCountry": "GR",
+      "Referer": target,
+      "Origin": null
+    };
 
-  const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0",
-    "Accept": "*/*",
-    "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
-    "X-Forwarded-For": "2.84.1.22",
-    "CF-IPCountry": "GR",
-    "Referer": target,
-    "Origin": null
-  };
-
-  const response = await fetch(target, {
-    method: req.method,
-    headers,
-    redirect: "follow"
-  });
-
-  const newHeaders = new Headers(response.headers);
-  newHeaders.set("Access-Control-Allow-Origin", "*");
-  newHeaders.set("Access-Control-Allow-Headers", "*");
-  newHeaders.set("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
-
-  if (target.endsWith(".m3u8")) {
-    let text = await response.text();
-    text = text.replace(/(https?:\/\/[^ ]+)/g, (match) => {
-      return `/api/proxy?url=${encodeURIComponent(match)}`;
+    const response = await fetch(target, {
+      method: req.method,
+      headers,
+      redirect: "follow"
     });
-    return new Response(text, { headers: newHeaders });
-  }
 
-  return new Response(response.body, { headers: newHeaders });
+    // Copy headers
+    const proxyHeaders = {};
+    response.headers.forEach((value, key) => {
+      proxyHeaders[key] = value;
+    });
+
+    // Allow CORS
+    proxyHeaders["Access-Control-Allow-Origin"] = "*";
+    proxyHeaders["Access-Control-Allow-Headers"] = "*";
+    proxyHeaders["Access-Control-Allow-Methods"] = "GET,HEAD,POST,OPTIONS";
+
+    // Handle text (HTML)
+    if (proxyHeaders["content-type"] && proxyHeaders["content-type"].includes("text")) {
+      const text = await response.text();
+      return res.set(proxyHeaders).send(text);
+    }
+
+    // Handle binary (images, video, etc.)
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return res.set(proxyHeaders).send(buffer);
+
+  } catch (err) {
+    console.error("Proxy error:", err);
+    return res.status(500).send("Proxy failed");
+  }
 }
