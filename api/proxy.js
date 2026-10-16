@@ -2,8 +2,8 @@ export default async function handler(req, res) {
   try {
     const target = req.query.url;
 
-    if (!target) {
-      return res.status(400).send("Missing ?url=");
+    if (!target || !target.startsWith("http")) {
+      return res.status(400).send("Missing or invalid ?url=");
     }
 
     const headers = {
@@ -22,24 +22,20 @@ export default async function handler(req, res) {
       redirect: "follow"
     });
 
-    // Copy headers
     const proxyHeaders = {};
     response.headers.forEach((value, key) => {
       proxyHeaders[key] = value;
     });
 
-    // Allow CORS
     proxyHeaders["Access-Control-Allow-Origin"] = "*";
     proxyHeaders["Access-Control-Allow-Headers"] = "*";
     proxyHeaders["Access-Control-Allow-Methods"] = "GET,HEAD,POST,OPTIONS";
 
-    // Handle text (HTML)
     if (proxyHeaders["content-type"] && proxyHeaders["content-type"].includes("text")) {
       const text = await response.text();
       return res.set(proxyHeaders).send(text);
     }
 
-    // Handle binary (images, video, etc.)
     const buffer = Buffer.from(await response.arrayBuffer());
     return res.set(proxyHeaders).send(buffer);
 
