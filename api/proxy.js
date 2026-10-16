@@ -1,42 +1,37 @@
-export default async function handler(req) {
-    const { searchParams } = new URL(req.url);
-    const target = searchParams.get("url");
+export default async function handler(req, res) {
+  try {
+    const target = req.query.url;
 
-    if (!target) {
-        return new Response("Missing ?url=", { status: 400 });
+    if (!target || !target.startsWith("http")) {
+      return res.status(400).send("Missing or invalid ?url=");
     }
-
-    // Cloudflare / CDN Spoofing
-    const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0",
-        "Accept": "*/*",
-        "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
-        "X-Forwarded-For": "2.84.1.22",        // griechische IP
-        "CF-IPCountry": "GR",
-        "Referer": target,
-        "Origin": null
-    };
 
     const response = await fetch(target, {
-        method: req.method,
-        headers,
-        redirect: "follow"
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "*/*"
+      }
     });
 
-    // CORS entfernen
-    const newHeaders = new Headers(response.headers);
-    newHeaders.set("Access-Control-Allow-Origin", "*");
-    newHeaders.set("Access-Control-Allow-Headers", "*");
-    newHeaders.set("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
+    const headers = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
 
-    // HLS-Segment-Rewrite
-    if (target.endsWith(".m3u8")) {
-        let text = await response.text();
-        text = text.replace(/(https?:\/\/[^ ]+)/g, (match) => {
-            return `/proxy?url=${encodeURIComponent(match)}`;
-        });
-        return new Response(text, { headers: newHeaders });
+    headers["Access-Control-Allow-Origin"] = "*";
+    headers["Access-Control-Allow-Headers"] = "*";
+    headers["Access-Control-Allow-Methods"] = "GET,HEAD,OPTIONS";
+
+    if (headers["content-type"]?.includes("text")) {
+      const text = await response.text();
+      return res.set(headers).send(text);
     }
 
-    return new Response(response.body, { headers: newHeaders });
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return res.set(headers).send(buffer);
+
+  } catch (err) {
+    return res.status(500).send("Proxy failed: " + err.message);
+  }
 }
