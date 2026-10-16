@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/ant1mega.html" },
-    { "source": "/proxy/(.*)", "destination": "/api/proxy" }
+    { "source": "/", "destination": "/ant1mega.html" }
   ]
 }
