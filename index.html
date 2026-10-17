@@ -109,7 +109,9 @@
 
             if (!targetUrl) return;
 
-            const proxiedUrl = proxyPrefix + encodeURIComponent(targetUrl);
+            // Für ant1free nutzen wir direkt den externen corsproxy, für andere Kanäle deinen Vercel-Proxy
+            // ... Deine Zeile 93 steht direkt hier drüber ...
+            const proxiedUrl = (channelKey === 'ant1free') ? targetUrl : proxyPrefix + encodeURIComponent(targetUrl);
 
             if (channelKey === 'ant1free') {
                 iframe.style.display = 'none';
@@ -148,7 +150,8 @@
                 iframe.style.display = 'block';
                 iframe.src = proxiedUrl;
             }
-        }
+        } // <-- Das hier schließt die loadChannel-Funktion ab
+    
     </script>
 </body>
 </html>
