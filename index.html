@@ -63,6 +63,15 @@
             height: auto;
             max-width: 1280px;
         }
+
+        /* Lade-Anzeige Text */
+        #loadingText {
+            display: none;
+            font-size: 20px;
+            color: #ffc107;
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -73,11 +82,13 @@
         <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">Ant1free</button>
     </div>
 
+    <div id="loadingText">Stream wird geladen, bitte warten...</div>
+
     <!-- Container für Webseiten-Modus (ANT1 HD / MEGA Life) -->
     <iframe id="tvframe"></iframe>
 
     <!-- Container für direkten M3U8-Videostream (Ant1free) -->
-    <video id="tvvideo" controls autoplay muted></video>
+    <video id="tvvideo" controls preload="auto" width="100%"></video>
 
     <script>
         // Dein Vercel Proxy-Prefix für reguläre Webseiten
@@ -90,7 +101,7 @@
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
-            ant1free: "https://antennaplus.gr"
+            ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
         };
 
         let hlsInstance = null;
@@ -108,6 +119,7 @@
             const targetUrl = channels[channelKey];
             const iframe = document.getElementById('tvframe');
             const video = document.getElementById('tvvideo');
+            const loadingText = document.getElementById('loadingText');
 
             if (!targetUrl) return;
 
@@ -116,6 +128,7 @@
                 iframe.style.display = 'none';
                 iframe.src = ''; 
                 video.style.display = 'block';
+                loadingText.style.display = 'block';
 
                 if (hlsInstance) {
                     hlsInstance.destroy();
@@ -126,28 +139,50 @@
 
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls({
-                        // Sorgt dafür, dass auch alle Unter-Playlists und TS-Segmente über den CORS-Proxy geladen werden
+                        maxMaxBufferLength: 10, // Optimiert für schnelles Laden im Webbrowser
                         xhrSetup: function (xhr, url) {
                             if (url.includes('antennaplus.gr') && !url.includes('corsproxy.io')) {
                                 xhr.open('GET', streamProxy + encodeURIComponent(url), true);
                             }
                         }
                     });
+                    
                     hlsInstance.loadSource(proxiedStreamUrl);
                     hlsInstance.attachMedia(video);
+                    
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
-                        video.play().catch(e => console.log("Autoplay blockiert:", e));
+                        loadingText.style.display = 'none';
+                        // Browser verlangen oft, dass der Stream stummgeschaltet startet (muted)
+                        video.muted = true; 
+                        video.play()
+                            .then(() => console.log("Stream erfolgreich gestartet."))
+                            .catch(e => {
+                                console.log("Autoplay blockiert, warte auf Klick:", e);
+                                // Fallback: Zeige dem Nutzer die Play-Steuerung
+                                video.controls = true;
+                            });
                     });
+
+                    hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                        if (data.fatal) {
+                            loadingText.innerText = "Ladefehler. Versuche neu zu verbinden...";
+                            hlsInstance.startLoad();
+                        }
+                    });
+
                 } 
                 // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                     video.src = proxiedStreamUrl;
                     video.addEventListener('loadedmetadata', function() {
-                        video.play().catch(e => console.log("Autoplay blockiert:", e));
+                        loadingText.style.display = 'none';
+                        video.muted = true;
+                        video.play().catch(e => console.log("Safari Autoplay blockiert"));
                     });
                 }
             } else {
                 // Webseiten-Modus: Über deine funktionierende proxy.js laufen lassen
+                loadingText.style.display = 'none';
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
