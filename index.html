@@ -80,10 +80,13 @@
     <video id="tvvideo" controls autoplay muted></video>
 
     <script>
-        // Dein Vercel Proxy-Prefix für reguläre Webseiten (ANT1 / MEGA)
+        // Dein Vercel Proxy-Prefix für reguläre Webseiten
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // Exakte M3U8-Adresse für ant1free
+        // Ein intelligenter CORS-Proxy, der Video-Playlists für den Browser lesbar macht
+        const streamProxy = "https://corsproxy.io?";
+
+        // Exakte und vollständige M3U8-Adresse für ant1free
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
@@ -118,19 +121,19 @@
                     hlsInstance.destroy();
                 }
 
-                // Wir nutzen AllOrigins, um den Stream über deine eigene IP statt über Vercel abzurufen
-                const clientIpProxyUrl = "https://allorigins.win" + encodeURIComponent(targetUrl);
+                // Der intelligente Proxy bindet sich vor die Stream-URL
+                const proxiedStreamUrl = streamProxy + encodeURIComponent(targetUrl);
 
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls({
-                        // Zwingt den Player, die Stream-Segmente ebenfalls korrekt aufzulösen
+                        // Sorgt dafür, dass auch alle Unter-Playlists und TS-Segmente über den CORS-Proxy geladen werden
                         xhrSetup: function (xhr, url) {
-                            if (url.includes('antennaplus.gr') && !url.includes('allorigins')) {
-                                xhr.open('GET', "https://allorigins.win" + encodeURIComponent(url), true);
+                            if (url.includes('antennaplus.gr') && !url.includes('corsproxy.io')) {
+                                xhr.open('GET', streamProxy + encodeURIComponent(url), true);
                             }
                         }
                     });
-                    hlsInstance.loadSource(clientIpProxyUrl);
+                    hlsInstance.loadSource(proxiedStreamUrl);
                     hlsInstance.attachMedia(video);
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
@@ -138,7 +141,7 @@
                 } 
                 // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = clientIpProxyUrl;
+                    video.src = proxiedStreamUrl;
                     video.addEventListener('loadedmetadata', function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
