@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Griechisches Live TV – Proxy Modus</title>
+    <title>Griechisches Live TV – Vidaa TV Modus</title>
+    <!-- Zuverlässige Streaming-Bibliothek für den Smart-TV Browser -->
+    <script src="https://cloudflare.com"></script>
 
     <style>
         body {
@@ -29,8 +31,8 @@
             background: #0056b3;
             color: white;
             border: none;
-            padding: 12px 24px;
-            font-size: 18px;
+            padding: 15px 30px; /* Große Buttons für die TV-Fernbedienung */
+            font-size: 20px;
             font-weight: bold;
             border-radius: 5px;
             cursor: pointer;
@@ -39,45 +41,58 @@
 
         .btn:hover, .btn:focus {
             background: #007bff;
-            outline: 3px solid #fff;
+            outline: 4px solid #fff; /* Fokus-Rahmen für TV-Steuerung */
         }
 
         .btn.active {
             background: #28a745;
         }
 
-        iframe {
+        /* Der Video-Player füllt den TV-Bildschirm perfekt aus */
+        video {
             width: 95%;
-            height: 80vh;
-            border: none;
+            max-width: 1280px;
+            height: 70vh;
             background: black;
             border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+
+        #loadingText {
+            display: none;
+            font-size: 22px;
+            color: #ffc107;
+            margin-bottom: 15px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
     <div class="menu">
-        <button class="btn" id="btn-ant1" onclick="loadChannel('ant1')">ANT1 HD</button>
-        <button class="btn" id="btn-mega" onclick="loadChannel('mega')">MEGA Life</button>
-        <!-- Dieser Button übergibt deine exakte Wunsch-URL direkt an den VLC Player -->
-        <button class="btn" id="btn-ant1free" onclick="openInVLC()">Ant1free (VLC Player)</button>
+        <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">ANT1 Free</button>
+        <button class="btn" id="btn-megalive" onclick="loadChannel('megalive')">MEGA Live HD</button>
     </div>
 
-    <!-- Container für Webseiten-Modus (ANT1 HD / MEGA Life) -->
-    <iframe id="tvframe"></iframe>
+    <div id="loadingText">Kanal wird geladen, bitte warten...</div>
+
+    <!-- Ein sauberer Video-Player für deinen Fernseher -->
+    <video id="tvvideo" controls preload="auto"></video>
 
     <script>
-        // Dein Vercel Proxy-Prefix für reguläre Webseiten
-        const proxyPrefix = window.location.origin + "/api/proxy?url=";
+        // Ein stabiler Proxy, der die Streams für Smart-TVs freischaltet
+        const publicProxy = "https://corsproxy.io";
 
+        // EXAKT DEINE GEWÜNSCHTE MASTER-URL HINTERLEGT:
         const channels = {
-            ant1: "https://antenna.gr",
-            mega: "https://megatv.com"
+            ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8",
+            megalive: "https://megatv.com"
         };
 
-        // Funktion für die normalen Webseiten im Iframe
+        let hlsInstance = null;
+
         function loadChannel(channelKey) {
+            // Buttons visuell aktualisieren
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
 
@@ -87,29 +102,60 @@
             }
 
             const targetUrl = channels[channelKey];
-            const iframe = document.getElementById('tvframe');
+            const video = document.getElementById('tvvideo');
+            const loadingText = document.getElementById('loadingText');
 
-            if (targetUrl) {
-                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
+            if (!targetUrl) return;
+
+            loadingText.style.display = 'block';
+            loadingText.innerText = "Verbindung zum Sender wird aufgebaut...";
+
+            if (hlsInstance) {
+                hlsInstance.destroy();
             }
-        }
 
-        // Funktion, um den Stream direkt im installierten VLC Player auf dem PC zu öffnen
-        function openInVLC() {
-            const buttons = document.querySelectorAll('.btn');
-            buttons.forEach(btn => btn.classList.remove('active'));
-            document.getElementById('btn-ant1free').classList.add('active');
+            // Wir jagen deine Master-M3U8 durch den Proxy
+            const proxiedStreamUrl = publicProxy + encodeURIComponent(targetUrl);
 
-            // HIER IST JETZT EXAKT DEINE WUNSCH-URL EINGEBAUT:
-            const streamUrl = "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8";
-            
-            // Sendet die M3U8 an das registrierte VLC-Protokoll deines Betriebssystems
-            window.location.href = "vlc://" + streamUrl;
+            if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    maxMaxBufferLength: 15,
+                    xhrSetup: function (xhr, url) {
+                        // KORREKTUR: Wenn Hls.js die relativen Unter-Listen aus deiner Master-M3U8 liest,
+                        // fangen wir sie hier ab und tunneln sie ebenfalls automatisch über corsproxy.io
+                        if (!url.includes('corsproxy.io')) {
+                            xhr.open('GET', publicProxy + encodeURIComponent(url), true);
+                        }
+                    }
+                });
+                
+                hlsInstance.loadSource(proxiedStreamUrl);
+                hlsInstance.attachMedia(video);
+                
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
+                    loadingText.style.display = 'none';
+                    // Der Stream startet mit Ton
+                    video.play().catch(e => {
+                        console.log("TV verlangt manuellen Start");
+                        loadingText.style.display = 'block';
+                        loadingText.innerText = "Bitte drücke auf der Fernbedienung auf PLAY!";
+                    });
+                });
 
-            // Infobox mit der exakten URL als Fallback zum manuellen Kopieren
-            setTimeout(() => {
-                alert("Der Stream wurde an deinen VLC Player gesendet!\n\nFalls VLC nicht automatisch startet, öffne den VLC Player auf deinem PC, drücke Strg+N und füge dort diese exakte URL ein:\n\n" + streamUrl);
-            }, 1000);
+                hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        hlsInstance.startLoad();
+                    }
+                });
+            } 
+            // Fallback für native HLS-Browser
+            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = proxiedStreamUrl;
+                video.addEventListener('loadedmetadata', function() {
+                    loadingText.style.display = 'none';
+                    video.play();
+                });
+            }
         }
     </script>
 </body>
