@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
-    // 1. CORS-Header setzen, damit dein Browser die Daten annehmen darf
+    // CORS-Header für den Browser öffnen
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, User-Agent, X-Requested-With');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -15,33 +15,53 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Standard-Header für normale Webseiten (Ant1 HD & Mega)
+        // Standard-Header für normale Webseiten
         let customHeaders = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'el-GR,el;q=0.9,en-US;q=0.8,en;q=0.7'
         };
 
-        // Spezial-Fall: Wenn der direkte M3U8 IPTV-Stream von Ant1 aufgerufen wird
-        if (url.includes('antennaplus.gr') && url.includes('.m3u8')) {
+        // Aggressivere Tarnung für den direkten M3U8 IPTV-Stream (Ant1free)
+        if (url.includes('antennaplus.gr') || url.includes('.m3u8')) {
             customHeaders = {
-                // Tarnt den Vercel-Server als eine erlaubte IPTV-App (Xiaomi/MAG Box)
-                'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 imini netfront/3.4.1',
-                'Referer': 'https://antenna.gr',
-                'Accept': '*/*'
+                // Emuliert exakt ein typisches Android-basiertes IPTV-Gerät (wie deine Xiaomi Box)
+                'User-Agent': 'PANASONIC-TV/2.0 (G20/Base) IPTV-Player/1.0 (Linux;Android 10)',
+                'Accept': '*/*',
+                'Accept-Language': 'el-GR,el;q=0.9',
+                'Connection': 'keep-alive',
+                'Origin': 'null',
+                // Einige Server verlangen zwingend leere oder keine Referer bei IPTV-Direktaufrufen
+                'Referer': ''
             };
         }
 
-        // Anfrage an den Zielserver senden
         const response = await fetch(url, {
             method: 'GET',
             headers: customHeaders
         });
 
-        if (!response.ok) {
-            return res.status(response.status).send(`Server-Fehler: ${response.statusText}`);
+        // Wenn der Server mit 403 blockiert, versuchen wir einen schnellen Fallback ohne jegliche Header-Einschränkung
+        if (response.status === 403 && url.includes('.m3u8')) {
+            const fallbackResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'okhttp/3.12.12', // Standard-Netzwerkbibliothek von Android-Apps
+                    'Accept': '*/*'
+                }
+            });
+            
+            if (fallbackResponse.ok) {
+                const streamData = await fallbackResponse.text();
+                res.setHeader('Content-Type', 'application/x-mpegURL');
+                return res.status(200).send(streamData);
+            }
         }
 
-        // Unterscheiden, ob wir eine Webseite oder ein Video zurückgeben
+        if (!response.ok) {
+            return res.status(response.status).send(`Server blockiert Zugriff: ${response.status} ${response.statusText}`);
+        }
+
         if (url.includes('.m3u8')) {
             const streamData = await response.text();
             res.setHeader('Content-Type', 'application/x-mpegURL');
