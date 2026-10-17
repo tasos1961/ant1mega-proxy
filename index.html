@@ -85,11 +85,13 @@
         //};
 
                 // Wir nutzen einen freien CORS-Proxy für den Direktstream, um Vercel zu umgehen
+                // Ant1free nutzt nun corsproxy.io + den stabilen internationalen Stream
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
-            ant1free: "https://herokuapp.com"
+            ant1free: "https://corsproxy.io?" + encodeURIComponent("https://antenna.gr")
         };
+
 
 
         let hlsInstance = null;
