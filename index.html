@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Griechisches Live TV – Proxy Modus</title>
-    <!-- Neue, stabile Skript-Quelle (cdnjs), da jsdelivr bei dir blockiert/abgelaufen ist -->
+    <!-- Zuverlässige Skript-Quelle für den HLS-Videoplayer geladen von cdnjs -->
     <script src="https://cloudflare.com"></script>
 
     <style>
@@ -48,6 +48,7 @@
             background: #28a745;
         }
 
+        /* Ein einheitlicher Container für Iframe und Videoplayer */
         iframe, video {
             width: 95%;
             height: 80vh;
@@ -56,6 +57,7 @@
             border-radius: 8px;
         }
 
+        /* Standardmäßig ist der Videoplayer unsichtbar */
         #tvvideo {
             display: none;
             height: auto;
@@ -71,32 +73,27 @@
         <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">Ant1free</button>
     </div>
 
+    <!-- Container für Webseiten-Modus (ANT1 HD / MEGA Life) -->
     <iframe id="tvframe"></iframe>
 
+    <!-- Container für direkten M3U8-Videostream (Ant1free) -->
     <video id="tvvideo" controls autoplay muted></video>
 
     <script>
+        // Dein Vercel Proxy-Prefix für reguläre Webseiten
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // const channels = {
-            // ant1: "https://antenna.gr",
-           // mega: "https://megatv.com",
-           // ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
-        //};
-
-                // Wir nutzen einen freien CORS-Proxy für den Direktstream, um Vercel zu umgehen
-                // Ant1free nutzt nun corsproxy.io + den stabilen internationalen Stream
+        // Adressliste: Die ersten beiden laden Webseiten, Ant1free lädt den Browser-Backup-Stream
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
-            ant1free: "https://corsproxy.io?" + encodeURIComponent("https://antenna.gr")
+            ant1free: "https://smart-tv-data.com"
         };
-
-
 
         let hlsInstance = null;
 
         function loadChannel(channelKey) {
+            // 1. Visuelles Update der Buttons
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
 
@@ -111,36 +108,38 @@
 
             if (!targetUrl) return;
 
-            // Für ant1free nutzen wir direkt den externen corsproxy, für andere Kanäle deinen Vercel-Proxy
-            // ... Deine Zeile 93 steht direkt hier drüber ...
-            const proxiedUrl = (channelKey === 'ant1free') ? targetUrl : proxyPrefix + encodeURIComponent(targetUrl);
-
+            // 2. Modus-Uterscheidung: Stream-Modus vs. Webseiten-Modus
             if (channelKey === 'ant1free') {
+                // Iframe abschalten, Video-Player einschalten
                 iframe.style.display = 'none';
                 iframe.src = ''; 
                 video.style.display = 'block';
 
+                // Falls vorher schon ein Stream lief, diesen sauber beenden
                 if (hlsInstance) {
                     hlsInstance.destroy();
                 }
 
+                // Stream direkt über Hls.js laden (ohne Proxy, da der Server Browser erlaubt)
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls();
-                    hlsInstance.loadSource(proxiedUrl);
+                    hlsInstance.loadSource(targetUrl);
                     hlsInstance.attachMedia(video);
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
                 } 
+                // Native Unterstützung für Apple Safari (iOS / Mac) aktivieren
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = proxiedUrl;
+                    video.src = targetUrl;
                     video.addEventListener('loadedmetadata', function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
                 } else {
-                    alert("Dein Browser unterstützt diesen Stream-Typ leider nicht.");
+                    alert("Dein Browser unterstützt HLS-Streaming leider nicht.");
                 }
             } else {
+                // Webseiten-Modus: Player ausschalten, Iframe einschalten und über deinen Vercel-Proxy leiten
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
@@ -150,10 +149,9 @@
                 video.style.display = 'none';
                 
                 iframe.style.display = 'block';
-                iframe.src = proxiedUrl;
+                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
             }
-        } // <-- Das hier schließt die loadChannel-Funktion ab
-    
+        }
     </script>
 </body>
 </html>
