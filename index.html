@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Griechisches Live TV – Proxy Modus</title>
-    <!-- Zuverlässige Skript-Quelle für den HLS-Videoplayer geladen von cdnjs -->
+    <!-- KORREKTUR: Zuverlässige Skript-Quelle für den HLS-Videoplayer geladen von cdnjs -->
     <script src="https://cloudflare.com"></script>
 
     <style>
@@ -91,10 +91,13 @@
     <video id="tvvideo" controls preload="auto" width="100%"></video>
 
     <script>
-        // Dein eigener Vercel-Proxy
+        // Dein eigener Vercel-Proxy (wird für die normalen Webseiten genutzt)
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // HIER STEHT JETZT EXAKT DEINE WUNSCH-URL:
+        // KORREKTUR: Ein Browser-CORS-Proxy, um die Vercel-IP-Sperre (403) zu umgehen
+        const publicProxy = "https://corsproxy.io?";
+
+        // Exakte Wunsch-URL ist korrekt hinterlegt
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
@@ -131,25 +134,27 @@
                     hlsInstance.destroy();
                 }
 
+                // Wir verknüpfen die Haupt-M3U8 mit dem funktionierenden Web-Proxy
+                const proxiedStreamUrl = publicProxy + encodeURIComponent(targetUrl);
+
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls({
                         maxMaxBufferLength: 10,
-                        // Intelligenter Interceptor: Hls.js berechnet die relativen Pfade korrekt basierend 
-                        // auf der Original-URL, aber wir jagen das Endergebnis durch deinen Vercel-Proxy!
+                        // KORREKTUR: Die relativen Segmente (.ts-Dateien aus deiner M3U8) werden ebenfalls 
+                        // automatisch über den Web-Proxy bezogen, um die Vercel-Blockade zu umschiffen.
                         xhrSetup: function (xhr, url) {
-                            if (!url.includes('/api/proxy')) {
-                                xhr.open('GET', proxyPrefix + encodeURIComponent(url), true);
+                            if (url.includes('antennaplus.gr') && !url.includes('corsproxy.io')) {
+                                xhr.open('GET', publicProxy + encodeURIComponent(url), true);
                             }
                         }
                     });
                     
-                    // Wir füttern Hls.js mit der echten URL, damit die relativen .m3u8-Pfade stimmen
-                    hlsInstance.loadSource(targetUrl);
+                    hlsInstance.loadSource(proxiedStreamUrl);
                     hlsInstance.attachMedia(video);
                     
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         loadingText.style.display = 'none';
-                        video.muted = true; // Stummgeschaltet wegen Browser-Vorschriften
+                        video.muted = true; // Stummgeschaltet wegen Browser-Autoplay-Richtlinien
                         video.play()
                             .then(() => console.log("Stream gestartet."))
                             .catch(e => console.log("Klicke manuell auf Play, falls blockiert"));
@@ -163,7 +168,7 @@
                 } 
                 // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = proxyPrefix + encodeURIComponent(targetUrl);
+                    video.src = proxiedStreamUrl;
                     video.addEventListener('loadedmetadata', function() {
                         loadingText.style.display = 'none';
                         video.muted = true;
@@ -171,7 +176,7 @@
                     });
                 }
             } else {
-                // Webseiten-Modus für normale Seiten über den Proxy
+                // Webseiten-Modus für normale Seiten über den Vercel-Proxy
                 loadingText.style.display = 'none';
                 if (hlsInstance) {
                     hlsInstance.destroy();
