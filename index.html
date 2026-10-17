@@ -91,13 +91,10 @@
     <video id="tvvideo" controls preload="auto" width="100%"></video>
 
     <script>
-        // Dein Vercel Proxy-Prefix für reguläre Webseiten
+        // Dein eigener Vercel-Proxy
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // Ein intelligenter CORS-Proxy, der Video-Playlists für den Browser lesbar macht
-        const streamProxy = "https://corsproxy.io?";
-
-        // Exakte und vollständige M3U8-Adresse für ant1free
+        // HIER STEHT JETZT EXAKT DEINE WUNSCH-URL:
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
@@ -134,54 +131,47 @@
                     hlsInstance.destroy();
                 }
 
-                // Der intelligente Proxy bindet sich vor die Stream-URL
-                const proxiedStreamUrl = streamProxy + encodeURIComponent(targetUrl);
-
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls({
-                        maxMaxBufferLength: 10, // Optimiert für schnelles Laden im Webbrowser
+                        maxMaxBufferLength: 10,
+                        // Intelligenter Interceptor: Hls.js berechnet die relativen Pfade korrekt basierend 
+                        // auf der Original-URL, aber wir jagen das Endergebnis durch deinen Vercel-Proxy!
                         xhrSetup: function (xhr, url) {
-                            if (url.includes('antennaplus.gr') && !url.includes('corsproxy.io')) {
-                                xhr.open('GET', streamProxy + encodeURIComponent(url), true);
+                            if (!url.includes('/api/proxy')) {
+                                xhr.open('GET', proxyPrefix + encodeURIComponent(url), true);
                             }
                         }
                     });
                     
-                    hlsInstance.loadSource(proxiedStreamUrl);
+                    // Wir füttern Hls.js mit der echten URL, damit die relativen .m3u8-Pfade stimmen
+                    hlsInstance.loadSource(targetUrl);
                     hlsInstance.attachMedia(video);
                     
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         loadingText.style.display = 'none';
-                        // Browser verlangen oft, dass der Stream stummgeschaltet startet (muted)
-                        video.muted = true; 
+                        video.muted = true; // Stummgeschaltet wegen Browser-Vorschriften
                         video.play()
-                            .then(() => console.log("Stream erfolgreich gestartet."))
-                            .catch(e => {
-                                console.log("Autoplay blockiert, warte auf Klick:", e);
-                                // Fallback: Zeige dem Nutzer die Play-Steuerung
-                                video.controls = true;
-                            });
+                            .then(() => console.log("Stream gestartet."))
+                            .catch(e => console.log("Klicke manuell auf Play, falls blockiert"));
                     });
 
                     hlsInstance.on(Hls.Events.ERROR, function (event, data) {
                         if (data.fatal) {
-                            loadingText.innerText = "Ladefehler. Versuche neu zu verbinden...";
                             hlsInstance.startLoad();
                         }
                     });
-
                 } 
                 // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = proxiedStreamUrl;
+                    video.src = proxyPrefix + encodeURIComponent(targetUrl);
                     video.addEventListener('loadedmetadata', function() {
                         loadingText.style.display = 'none';
                         video.muted = true;
-                        video.play().catch(e => console.log("Safari Autoplay blockiert"));
+                        video.play().catch(e => console.log("Safari blockiert"));
                     });
                 }
             } else {
-                // Webseiten-Modus: Über deine funktionierende proxy.js laufen lassen
+                // Webseiten-Modus für normale Seiten über den Proxy
                 loadingText.style.display = 'none';
                 if (hlsInstance) {
                     hlsInstance.destroy();
