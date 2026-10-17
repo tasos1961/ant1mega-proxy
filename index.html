@@ -80,14 +80,14 @@
     <video id="tvvideo" controls autoplay muted></video>
 
     <script>
-        // Dein Vercel Proxy-Prefix für reguläre Webseiten
+        // Dein Vercel Proxy-Prefix für alle Anfragen
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // Adressliste: Die ersten beiden laden Webseiten, Ant1free lädt den Browser-Backup-Stream
+        // JETZT ABSOLUT KORREKT: Exakte M3U8-Adresse für ant1free hinterlegt!
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
-            ant1free: "https://smart-tv-data.com"
+            ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
         };
 
         let hlsInstance = null;
@@ -108,30 +108,30 @@
 
             if (!targetUrl) return;
 
-            // 2. Modus-Uterscheidung: Stream-Modus vs. Webseiten-Modus
+            // Jede URL wird verschlüsselt durch deine Vercel proxy.js gejagt
+            const proxiedUrl = proxyPrefix + encodeURIComponent(targetUrl);
+
+            // 2. Modus-Unterscheidung: Stream-Modus vs. Webseiten-Modus
             if (channelKey === 'ant1free') {
-                // Iframe abschalten, Video-Player einschalten
                 iframe.style.display = 'none';
                 iframe.src = ''; 
                 video.style.display = 'block';
 
-                // Falls vorher schon ein Stream lief, diesen sauber beenden
                 if (hlsInstance) {
                     hlsInstance.destroy();
                 }
 
-                // Stream direkt über Hls.js laden (ohne Proxy, da der Server Browser erlaubt)
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls();
-                    hlsInstance.loadSource(targetUrl);
+                    hlsInstance.loadSource(proxiedUrl);
                     hlsInstance.attachMedia(video);
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
                 } 
-                // Native Unterstützung für Apple Safari (iOS / Mac) aktivieren
+                // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = targetUrl;
+                    video.src = proxiedUrl;
                     video.addEventListener('loadedmetadata', function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
@@ -139,7 +139,6 @@
                     alert("Dein Browser unterstützt HLS-Streaming leider nicht.");
                 }
             } else {
-                // Webseiten-Modus: Player ausschalten, Iframe einschalten und über deinen Vercel-Proxy leiten
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
@@ -149,7 +148,7 @@
                 video.style.display = 'none';
                 
                 iframe.style.display = 'block';
-                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
+                iframe.src = proxiedUrl;
             }
         }
     </script>
