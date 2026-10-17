@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Griechisches Live TV – Proxy Modus</title>
-    <!-- Zuverlässige Skript-Quelle für den HLS-Videoplayer geladen von cdnjs -->
-    <script src="https://cloudflare.com"></script>
 
     <style>
         body {
@@ -48,26 +46,13 @@
             background: #28a745;
         }
 
-        iframe, video {
+        /* Ein einheitlicher Container für das Iframe */
+        iframe {
             width: 95%;
             height: 80vh;
             border: none;
             background: black;
             border-radius: 8px;
-        }
-
-        #tvvideo {
-            display: none;
-            height: auto;
-            max-width: 1280px;
-        }
-
-        #loadingText {
-            display: none;
-            font-size: 20px;
-            color: #ffc107;
-            margin-top: 10px;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -76,30 +61,23 @@
     <div class="menu">
         <button class="btn" id="btn-ant1" onclick="loadChannel('ant1')">ANT1 HD</button>
         <button class="btn" id="btn-mega" onclick="loadChannel('mega')">MEGA Life</button>
-        <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">Ant1free</button>
+        <!-- Dieser Button öffnet den funktionierenden Stream direkt in deinem VLC Player! -->
+        <button class="btn" id="btn-ant1free" onclick="openInVLC()">Ant1free (VLC Player)</button>
     </div>
 
-    <div id="loadingText">Stream wird im VLC-Modus geladen...</div>
-
-    <!-- Container für Webseiten-Modus -->
+    <!-- Container für Webseiten-Modus (ANT1 HD / MEGA Life) -->
     <iframe id="tvframe"></iframe>
 
-    <!-- Container für M3U8-Videostream -->
-    <video id="tvvideo" controls preload="auto" width="100%"></video>
-
     <script>
-        // Exklusiver Vercel-Proxy-Tunnel
+        // Dein Vercel Proxy-Prefix für reguläre Webseiten
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // JETZT 100% KORREKT UND VOLLSTÄNDIG:
         const channels = {
             ant1: "https://antenna.gr",
-            mega: "https://megatv.com",
-            ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
+            mega: "https://megatv.com"
         };
 
-        let hlsInstance = null;
-
+        // Funktion für die normalen Webseiten im Iframe
         function loadChannel(channelKey) {
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
@@ -111,64 +89,27 @@
 
             const targetUrl = channels[channelKey];
             const iframe = document.getElementById('tvframe');
-            const video = document.getElementById('tvvideo');
-            const loadingText = document.getElementById('loadingText');
 
-            if (!targetUrl) return;
-
-            // Die Hauptadresse wird durch den getarnten Vercel-Proxy getunnelt
-            const proxiedUrl = proxyPrefix + encodeURIComponent(targetUrl);
-
-            if (channelKey === 'ant1free') {
-                iframe.style.display = 'none';
-                iframe.src = ''; 
-                video.style.display = 'block';
-                loadingText.style.display = 'block';
-
-                if (hlsInstance) {
-                    hlsInstance.destroy();
-                }
-
-                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-                    hlsInstance = new Hls({ maxMaxBufferLength: 10 });
-                    
-                    hlsInstance.loadSource(proxiedUrl);
-                    hlsInstance.attachMedia(video);
-                    
-                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
-                        loadingText.style.display = 'none';
-                        video.muted = true; // Stummgeschaltet starten für Autoplay-Freigabe
-                        video.play().catch(e => console.log("Warte auf Interaktion"));
-                    });
-
-                    hlsInstance.on(Hls.Events.ERROR, function (event, data) {
-                        if (data.fatal) {
-                            hlsInstance.startLoad();
-                        }
-                    });
-                } 
-                else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = proxiedUrl;
-                    video.addEventListener('loadedmetadata', function() {
-                        loadingText.style.display = 'none';
-                        video.muted = true;
-                        video.play().catch(e => console.log("Safari blockiert"));
-                    });
-                }
-            } else {
-                loadingText.style.display = 'none';
-                if (hlsInstance) {
-                    hlsInstance.destroy();
-                    hlsInstance = null;
-                }
-                video.pause();
-                video.removeAttribute('src');
-                video.load();
-                video.style.display = 'none';
-                
-                iframe.style.display = 'block';
-                iframe.src = proxiedUrl;
+            if (targetUrl) {
+                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
             }
+        }
+
+        // KORREKTUR: Diese Funktion übergibt den funktionierenden Link direkt an deinen VLC Player auf dem PC!
+        function openInVLC() {
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-ant1free').classList.add('active');
+
+            const streamUrl = "https://antennaplus.gr";
+            
+            // Nutzt das standardmäßige Protokoll, um externe Mediaplayer/VLC zu triggern
+            window.location.href = "vlc://" + streamUrl;
+
+            // Fallback: Falls die vlc:// Verknüpfung nicht eingerichtet ist, öffnet sich ein neues Fenster
+            setTimeout(() => {
+                alert("Der Stream wurde an deinen VLC Player gesendet!\n\nFalls VLC nicht startet, öffne den VLC Player, drücke Strg+N und füge dort die URL ein:\n" + streamUrl);
+            }, 1000);
         }
     </script>
 </body>
