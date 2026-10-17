@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Griechisches Live TV – Proxy Modus</title>
-    <!-- Hls.js Bibliothek für M3U8-Streaming im Browser laden -->
-   <script src="https://cloudflare.com"></script>
+    <!-- Neue, stabile Skript-Quelle (cdnjs), da jsdelivr bei dir blockiert/abgelaufen ist -->
+    <script src="https://cloudflare.com"></script>
+
     <style>
         body {
             margin: 0;
@@ -47,7 +48,6 @@
             background: #28a745;
         }
 
-        /* Gemeinsame Größen für Player und Iframe */
         iframe, video {
             width: 95%;
             height: 80vh;
@@ -56,7 +56,6 @@
             border-radius: 8px;
         }
 
-        /* Startkonfiguration: Videoplayer verstecken */
         #tvvideo {
             display: none;
             height: auto;
@@ -69,21 +68,16 @@
     <div class="menu">
         <button class="btn" id="btn-ant1" onclick="loadChannel('ant1')">ANT1 HD</button>
         <button class="btn" id="btn-mega" onclick="loadChannel('mega')">MEGA Life</button>
-        <!-- Neuer Button für den direkten M3U8 IPTV-Stream -->
         <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">Ant1free</button>
     </div>
 
-    <!-- Container für Webseiten-Modus -->
     <iframe id="tvframe"></iframe>
 
-    <!-- Container für direkten M3U8-Stream-Modus -->
     <video id="tvvideo" controls autoplay muted></video>
 
     <script>
-        // Dynamischer Proxy-Prefix passend zu deiner Vercel-Domain
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // Offizielle Webseiten und Direkt-Streams
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
@@ -93,7 +87,6 @@
         let hlsInstance = null;
 
         function loadChannel(channelKey) {
-            // 1. Buttons aktualisieren
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
 
@@ -108,23 +101,18 @@
 
             if (!targetUrl) return;
 
-            // Proxied URL erstellen
             const proxiedUrl = proxyPrefix + encodeURIComponent(targetUrl);
 
-            // 2. Modus-Unterscheidung: M3U8-Stream vs. normale Webseite
             if (channelKey === 'ant1free') {
-                // Iframe verstecken, Video-Player anzeigen
                 iframe.style.display = 'none';
                 iframe.src = ''; 
                 video.style.display = 'block';
 
-                // Bestehenden Stream stoppen, falls aktiv
                 if (hlsInstance) {
                     hlsInstance.destroy();
                 }
 
-                // HLS Stream im Player initialisieren
-                if (Hls.isSupported()) {
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                     hlsInstance = new Hls();
                     hlsInstance.loadSource(proxiedUrl);
                     hlsInstance.attachMedia(video);
@@ -132,15 +120,15 @@
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
                 } 
-                // Native Unterstützung für Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                     video.src = proxiedUrl;
                     video.addEventListener('loadedmetadata', function() {
                         video.play().catch(e => console.log("Autoplay blockiert:", e));
                     });
+                } else {
+                    alert("Dein Browser unterstützt diesen Stream-Typ leider nicht.");
                 }
             } else {
-                // Webseiten-Modus (ant1 / mega): Video-Player stoppen & verstecken, Iframe anzeigen
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
