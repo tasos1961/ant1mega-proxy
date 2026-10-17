@@ -46,7 +46,6 @@
             background: #28a745;
         }
 
-        /* Ein einheitlicher Container für das Iframe */
         iframe {
             width: 95%;
             height: 80vh;
@@ -61,7 +60,7 @@
     <div class="menu">
         <button class="btn" id="btn-ant1" onclick="loadChannel('ant1')">ANT1 HD</button>
         <button class="btn" id="btn-mega" onclick="loadChannel('mega')">MEGA Life</button>
-        <!-- Dieser Button öffnet den funktionierenden Stream direkt in deinem VLC Player! -->
+        <!-- Dieser Button übergibt deine exakte Wunsch-URL direkt an den VLC Player -->
         <button class="btn" id="btn-ant1free" onclick="openInVLC()">Ant1free (VLC Player)</button>
     </div>
 
@@ -95,20 +94,21 @@
             }
         }
 
-        // KORREKTUR: Diese Funktion übergibt den funktionierenden Link direkt an deinen VLC Player auf dem PC!
+        // Funktion, um den Stream direkt im installierten VLC Player auf dem PC zu öffnen
         function openInVLC() {
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
             document.getElementById('btn-ant1free').classList.add('active');
 
-            const streamUrl = "https://antennaplus.gr";
+            // HIER IST JETZT EXAKT DEINE WUNSCH-URL EINGEBAUT:
+            const streamUrl = "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8";
             
-            // Nutzt das standardmäßige Protokoll, um externe Mediaplayer/VLC zu triggern
+            // Sendet die M3U8 an das registrierte VLC-Protokoll deines Betriebssystems
             window.location.href = "vlc://" + streamUrl;
 
-            // Fallback: Falls die vlc:// Verknüpfung nicht eingerichtet ist, öffnet sich ein neues Fenster
+            // Infobox mit der exakten URL als Fallback zum manuellen Kopieren
             setTimeout(() => {
-                alert("Der Stream wurde an deinen VLC Player gesendet!\n\nFalls VLC nicht startet, öffne den VLC Player, drücke Strg+N und füge dort die URL ein:\n" + streamUrl);
+                alert("Der Stream wurde an deinen VLC Player gesendet!\n\nFalls VLC nicht automatisch startet, öffne den VLC Player auf deinem PC, drücke Strg+N und füge dort diese exakte URL ein:\n\n" + streamUrl);
             }, 1000);
         }
     </script>
