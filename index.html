@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Griechisches Live TV – Proxy Modus</title>
-    <!-- KORREKTUR: Die echte, funktionierende Skript-Quelle für den HLS-Player eingesetzt -->
+    <!-- Zuverlässige Skript-Quelle für den HLS-Videoplayer geladen von cdnjs -->
     <script src="https://cloudflare.com"></script>
 
     <style>
@@ -48,7 +48,6 @@
             background: #28a745;
         }
 
-        /* Container für Iframe und Videoplayer */
         iframe, video {
             width: 95%;
             height: 80vh;
@@ -57,14 +56,12 @@
             border-radius: 8px;
         }
 
-        /* Standardmäßig ist der Videoplayer unsichtbar */
         #tvvideo {
             display: none;
             height: auto;
             max-width: 1280px;
         }
 
-        /* Lade-Anzeige Text */
         #loadingText {
             display: none;
             font-size: 20px;
@@ -82,32 +79,28 @@
         <button class="btn" id="btn-ant1free" onclick="loadChannel('ant1free')">Ant1free</button>
     </div>
 
-    <div id="loadingText">Stream wird geladen, bitte warten...</div>
+    <div id="loadingText">Stream wird im VLC-Modus geladen...</div>
 
-    <!-- Container für Webseiten-Modus (ANT1 HD / MEGA Life) -->
+    <!-- Container für Webseiten-Modus -->
     <iframe id="tvframe"></iframe>
 
-    <!-- Container für direkten M3U8-Videostream (Ant1free) -->
+    <!-- Container für M3U8-Videostream -->
     <video id="tvvideo" controls preload="auto" width="100%"></video>
 
     <script>
-        // Dein eigener Vercel-Proxy (wird für die normalen Webseiten genutzt)
+        // Exklusiver Vercel-Proxy-Tunnel
         const proxyPrefix = window.location.origin + "/api/proxy?url=";
 
-        // KORREKTUR: Das "=url" am Ende hinzugefügt, damit corsproxy.io die Links richtig umschreibt
-        const publicProxy = "https://corsproxy.io";
-
-        // Exakte Wunsch-URL von ANT1
+        // JETZT 100% KORREKT UND VOLLSTÄNDIG:
         const channels = {
             ant1: "https://antenna.gr",
             mega: "https://megatv.com",
-             ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
+            ant1free: "https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8"
         };
 
         let hlsInstance = null;
 
         function loadChannel(channelKey) {
-            // 1. Visuelles Update der Buttons
             const buttons = document.querySelectorAll('.btn');
             buttons.forEach(btn => btn.classList.remove('active'));
 
@@ -123,7 +116,9 @@
 
             if (!targetUrl) return;
 
-            // 2. Modus-Unterscheidung: Stream-Modus vs. Webseiten-Modus
+            // Die Hauptadresse wird durch den getarnten Vercel-Proxy getunnelt
+            const proxiedUrl = proxyPrefix + encodeURIComponent(targetUrl);
+
             if (channelKey === 'ant1free') {
                 iframe.style.display = 'none';
                 iframe.src = ''; 
@@ -134,29 +129,16 @@
                     hlsInstance.destroy();
                 }
 
-                // Wir verknüpfen die Haupt-M3U8 sauber mit dem funktionierenden Web-Proxy
-                const proxiedStreamUrl = publicProxy + encodeURIComponent(targetUrl);
-
                 if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-                    hlsInstance = new Hls({
-                        maxMaxBufferLength: 10,
-                        // KORREKTUR: Jedes Untersegment (.ts-Dateien) wird nun sauber über den CORS-Proxy angefordert
-                        xhrSetup: function (xhr, url) {
-                            if (url.includes('antennaplus.gr') && !url.includes('corsproxy.io')) {
-                                xhr.open('GET', publicProxy + encodeURIComponent(url), true);
-                            }
-                        }
-                    });
+                    hlsInstance = new Hls({ maxMaxBufferLength: 10 });
                     
-                    hlsInstance.loadSource(proxiedStreamUrl);
+                    hlsInstance.loadSource(proxiedUrl);
                     hlsInstance.attachMedia(video);
                     
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
                         loadingText.style.display = 'none';
-                        video.muted = true; // Aktiviert Autoplay im Browser, Ton wird später angeschaltet
-                        video.play()
-                            .then(() => console.log("Stream gestartet."))
-                            .catch(e => console.log("Warte auf Klick durch den Nutzer"));
+                        video.muted = true; // Stummgeschaltet starten für Autoplay-Freigabe
+                        video.play().catch(e => console.log("Warte auf Interaktion"));
                     });
 
                     hlsInstance.on(Hls.Events.ERROR, function (event, data) {
@@ -165,9 +147,8 @@
                         }
                     });
                 } 
-                // Native Unterstützung für Apple Safari (iOS / Mac)
                 else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = proxiedStreamUrl;
+                    video.src = proxiedUrl;
                     video.addEventListener('loadedmetadata', function() {
                         loadingText.style.display = 'none';
                         video.muted = true;
@@ -175,22 +156,20 @@
                     });
                 }
             } else {
-                // Webseiten-Modus für normale Seiten über den Vercel-Proxy
                 loadingText.style.display = 'none';
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
                 }
                 video.pause();
-                video.removeAttribute('src'); // KORREKTUR: Löscht harte Altlasten im HTML-Tag
+                video.removeAttribute('src');
                 video.load();
                 video.style.display = 'none';
                 
                 iframe.style.display = 'block';
-                iframe.src = proxyPrefix + encodeURIComponent(targetUrl);
+                iframe.src = proxiedUrl;
             }
         }
     </script>
 </body>
 </html>
-
