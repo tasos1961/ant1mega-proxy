@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
-    // CORS-Header für den Browser öffnen
+    // CORS für deinen Browser öffnen
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, User-Agent, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', '*');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -15,61 +15,47 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Standard-Header für normale Webseiten
-        let customHeaders = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'el-GR,el;q=0.9,en-US;q=0.8,en;q=0.7'
+        // Die exakte Tarnung des VLC Media Players
+        const vlcHeaders = {
+            'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+            'Accept': '*/*',
+            'Connection': 'close' // VLC hält Verbindungen oft nicht offen
         };
-
-        // Aggressivere Tarnung für den direkten M3U8 IPTV-Stream (Ant1free)
-        if (url.includes('antennaplus.gr') || url.includes('.m3u8')) {
-            customHeaders = {
-                // Emuliert exakt ein typisches Android-basiertes IPTV-Gerät (wie deine Xiaomi Box)
-                'User-Agent': 'PANASONIC-TV/2.0 (G20/Base) IPTV-Player/1.0 (Linux;Android 10)',
-                'Accept': '*/*',
-                'Accept-Language': 'el-GR,el;q=0.9',
-                'Connection': 'keep-alive',
-                'Origin': 'null',
-                // Einige Server verlangen zwingend leere oder keine Referer bei IPTV-Direktaufrufen
-                'Referer': ''
-            };
-        }
 
         const response = await fetch(url, {
             method: 'GET',
-            headers: customHeaders
+            headers: vlcHeaders
         });
 
-        // Wenn der Server mit 403 blockiert, versuchen wir einen schnellen Fallback ohne jegliche Header-Einschränkung
-        if (response.status === 403 && url.includes('.m3u8')) {
-            const fallbackResponse = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'okhttp/3.12.12', // Standard-Netzwerkbibliothek von Android-Apps
-                    'Accept': '*/*'
-                }
-            });
-            
-            if (fallbackResponse.ok) {
-                const streamData = await fallbackResponse.text();
-                res.setHeader('Content-Type', 'application/x-mpegURL');
-                return res.status(200).send(streamData);
-            }
-        }
-
         if (!response.ok) {
-            return res.status(response.status).send(`Server blockiert Zugriff: ${response.status} ${response.statusText}`);
+            return res.status(response.status).send(`ANT1 meldet Fehler: ${response.status}`);
         }
 
+        // Wenn es eine M3U8-Liste ist, schreiben wir die Pfade für den Player um
         if (url.includes('.m3u8')) {
-            const streamData = await response.text();
+            let text = await response.text();
+            const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
+            const proxyBase = `https://${req.headers.host}/api/proxy?url=`;
+
+            const lines = text.split('\n');
+            const processedLines = lines.map(line => {
+                line = line.trim();
+                if (line.length === 0 || line.startsWith('#')) {
+                    return line;
+                }
+                if (!line.startsWith('http')) {
+                    return proxyBase + encodeURIComponent(baseUrl + line);
+                }
+                return proxyBase + encodeURIComponent(line);
+            });
+
             res.setHeader('Content-Type', 'application/x-mpegURL');
-            return res.status(200).send(streamData);
+            return res.status(200).send(processedLines.join('\n'));
         } else {
-            const htmlData = await response.text();
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            return res.status(200).send(htmlData);
+            // Rohdaten der Videosegmente (.ts) wie VLC streamen
+            const arrayBuffer = await response.arrayBuffer();
+            res.setHeader('Content-Type', response.headers.get('content-type') || 'video/MP2T');
+            return res.status(200).send(Buffer.from(arrayBuffer));
         }
 
     } catch (error) {
